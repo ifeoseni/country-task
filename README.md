@@ -31,7 +31,7 @@ A RESTful API that fetches country data from external APIs, stores it in a datab
 1. **Clone the repository**
 
     ```bash
-    git clone <repository-url>
+    git clone https://github.com/ifeoseni/country-task
     cd country-task
     ```
 
