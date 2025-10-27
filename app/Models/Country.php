@@ -28,6 +28,7 @@ class Country extends Model
 
     /**
      * Validation rules for creating/updating countries
+     * UPDATED TO MATCH BUSINESS LOGIC REQUIREMENTS
      */
     public static function validationRules($forUpdate = false): array
     {
@@ -36,9 +37,9 @@ class Country extends Model
             'capital' => 'nullable|string|max:255',
             'region' => 'nullable|string|max:255',
             'population' => 'required|integer|min:0',
-            'currency_code' => 'required|string|max:10',
-            'exchange_rate' => 'required|numeric|min:0',
-            'estimated_gdp' => 'required|numeric|min:0',
+            'currency_code' => 'nullable|string|max:10', // CHANGED: can be null
+            'exchange_rate' => 'nullable|numeric', // CHANGED: can be null, no min
+            'estimated_gdp' => 'nullable|numeric', // CHANGED: can be null, no min
             'flag_url' => 'nullable|url|max:500',
             'last_refreshed_at' => 'nullable|date',
         ];
@@ -71,11 +72,16 @@ class Country extends Model
     }
 
     /**
-     * Scope for sorting by GDP
+     * Scope for sorting by GDP - FIXED to handle null values
      */
     public function scopeSortByGdp($query, $direction = 'desc')
     {
-        return $query->orderBy('estimated_gdp', $direction);
+        // Handle null values by putting them at the end
+        if ($direction === 'desc') {
+            return $query->orderByRaw('estimated_gdp IS NULL, estimated_gdp DESC');
+        } else {
+            return $query->orderByRaw('estimated_gdp IS NULL, estimated_gdp ASC');
+        }
     }
 
     /**
@@ -95,11 +101,14 @@ class Country extends Model
     }
 
     /**
-     * Get the top countries by GDP
+     * Get the top countries by GDP - FIXED to handle sorting properly
      */
     public static function getTopByGdp($limit = 5)
     {
-        return static::sortByGdp('desc')->limit($limit)->get();
+        return static::whereNotNull('estimated_gdp')
+                    ->orderByRaw('CAST(estimated_gdp AS DECIMAL(30,6)) DESC')
+                    ->limit($limit)
+                    ->get();
     }
 
     /**
@@ -107,11 +116,11 @@ class Country extends Model
      */
     public static function calculateEstimatedGdp($population, $exchangeRate): float
     {
-        if (!$exchangeRate) {
+        if (!$exchangeRate || $exchangeRate <= 0) {
             return 0;
         }
 
         $randomMultiplier = rand(1000, 2000);
-        return ($population * $randomMultiplier) / $exchangeRate;
+        return (float) (($population * $randomMultiplier) / $exchangeRate);
     }
 }

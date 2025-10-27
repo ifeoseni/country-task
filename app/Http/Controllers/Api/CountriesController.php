@@ -119,7 +119,8 @@ class CountriesController extends Controller
                         // Generate fresh random multiplier for each country
                         $mult = rand(1000, 2000);
                         if ($exchange_rate > 0) {
-                            $estimated_gdp = ($population * $mult) / $exchange_rate;
+                            // FIXED: Ensure GDP is stored as float to prevent string comparison issues
+                            $estimated_gdp = (float) (($population * $mult) / $exchange_rate);
                         } else {
                             $estimated_gdp = null;
                         }
@@ -210,7 +211,8 @@ class CountriesController extends Controller
         $sort = $request->query('sort');
         if ($sort) {
             if ($sort === 'gdp_desc') {
-                $query->orderByDesc('estimated_gdp');
+                // FIXED: Use raw SQL casting to ensure proper numeric sorting and avoid string comparison errors
+                $query->orderByRaw('CAST(estimated_gdp AS DECIMAL(30,6)) DESC');
             } else {
                 return $this->error(
                     'Validation failed',
@@ -322,8 +324,9 @@ class CountriesController extends Controller
      * 
      * Serve the generated summary image. Return 404 JSON if not present.
      */
-    public function image(): JsonResponse
+    public function image()
     {
+        // FIXED: Removed JsonResponse return type to allow both JSON and file responses
         try {
             $path = storage_path('app/public/cache/summary.png');
 
@@ -331,15 +334,8 @@ class CountriesController extends Controller
                 return $this->error('Summary image not found', 404);
             }
 
-            // For image response, we need to handle this differently
-            // Since we can't return both JSON and image from same method,
-            // we'll stick with JSON responses for consistency
-            $imageData = base64_encode(file_get_contents($path));
-            return $this->success([
-                'message' => 'Image found',
-                'image_data' => $imageData,
-                'format' => 'base64_encoded_png'
-            ], 200);
+            // FIXED: Return actual image file with correct Content-Type for the test
+            return response()->file($path, ['Content-Type' => 'image/png']);
             
         } catch (Exception $e) {
             Log::error('Failed to serve image', ['exception' => $e->getMessage()]);
@@ -373,8 +369,9 @@ class CountriesController extends Controller
     {
         try {
             $total = Country::count();
+            // FIXED: Use raw SQL casting for proper GDP sorting in image generation
             $top5 = Country::whereNotNull('estimated_gdp')
-                ->orderByDesc('estimated_gdp')
+                ->orderByRaw('CAST(estimated_gdp AS DECIMAL(30,6)) DESC')
                 ->limit(5)
                 ->get(['name', 'estimated_gdp']);
 
